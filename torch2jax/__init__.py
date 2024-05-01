@@ -166,6 +166,7 @@ def auto_implements(torch_function, jax_function, dont_coerce_argnums=()):
 
 
 auto_implements(torch.add, jnp.add)
+auto_implements(torch.subtract, jnp.subtract)
 auto_implements(torch.exp, jnp.exp)
 auto_implements(torch.nn.functional.gelu, jax.nn.gelu)
 auto_implements(torch.mean, jnp.mean)
@@ -191,7 +192,7 @@ def logsumexp(logits, dim, keepdim): return jax.scipy.special.logsumexp(coerce(l
 @implements(torch.nn.functional.softmax)
 def softmax(input, dim=None, _stacklevel=3, dtype=None): return jax.nn.softmax(coerce(input), axis=dim)
 
-@implements(torch.functional.broadcast_tensors, JAXishify_output=False)
+@implements(torch.functional.broadcast_tensors, Torchishify_output=False)
 def broadcast_tensors(*tensors): return (Torchish(x) for x in jax.numpy.broadcast_arrays(*[coerce(t) for t in tensors]))
 
 # @implements(torch.multinomial)
