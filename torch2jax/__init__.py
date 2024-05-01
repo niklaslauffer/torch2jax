@@ -110,10 +110,18 @@ class Torchish:
   def detach(self): return Torchish(jax.lax.stop_gradient(self.value))
   def dim(self): return self.ndim
   def item(self): return self.value.item()
-  def size(self): return self.shape
+  def size(self, dim=None): return self.shape if dim==None else jnp.size(self.value, axis=dim)
   def view(self, *shape): return Torchish(jnp.reshape(self.value, shape))
   reshape = view
+
+  def argmax(self, dim=None, keepdim=False): return Torchish(jnp.argmax(self.value, axis=dim, keepdims=keepdim))
+  def squeeze(self, dim=None): return Torchish(jnp.squeeze(self.value, axis=dim))
+  def unsqueeze(self, dim=None): return Torchish(jnp.expand_dims(self.value, axis=dim))
+  def long(self): return self
+  def gather(self, dim, index): return Torchish(jnp.take_along_axis(self.value, coerce(index), axis=dim))
+  def to(self, *args, **kwargs): return self
   # fmt: on
+
 
   def add_(self, other):
     self.value += other
@@ -174,6 +182,28 @@ auto_implements(torch.transpose, jnp.swapaxes)
 @implements(torch.cat)
 def cat(tensors, dim=0):
   return jnp.concatenate([coerce(x) for x in tensors], axis=dim)
+
+
+# TODO: test
+@implements(torch.logsumexp)
+def logsumexp(logits, dim, keepdim): return jax.scipy.special.logsumexp(coerce(logits), axis=dim, keepdims=keepdim)
+
+@implements(torch.nn.functional.softmax)
+def softmax(input, dim=None, _stacklevel=3, dtype=None): return jax.nn.softmax(coerce(input), axis=dim)
+
+@implements(torch.functional.broadcast_tensors, JAXishify_output=False)
+def broadcast_tensors(*tensors): return (Torchish(x) for x in jax.numpy.broadcast_arrays(*[coerce(t) for t in tensors]))
+
+# @implements(torch.multinomial)
+# def multinomial(input, num_samples, replacement=True, *, generator=None):
+#   # assert not replacement, "TODO: implement replacement=True"
+#   # return jax.random.categorical(generator, logits=jnp.log(coerce(input)), num_samples=num_samples)
+#   return tfp.distributions.Multinomial(num_samples, probs=coerce(input)).sample(
+#         seed=generator,
+#     )
+
+# @implements(torch.argmax)
+# def argmax(self, dim=None, keepdim=False): return jnp.argmax(coerce(self.value), axis=dim, keepdims=keepdim)
 
 
 @implements(torch.flatten)
@@ -656,7 +686,8 @@ def multi_head_attention_forward(
 
 # It might be nice to use torch.func.functionalize, but it so far seems buggy (FunctionalTensor.numpy() gives incorrect
 # results) and unnecessary.
-t2j_function = lambda f: lambda *args: f(*jax.tree_util.tree_map(Torchish, args)).value
+# t2j_function = lambda f: lambda *args: f(*jax.tree_util.tree_map(Torchish, args)).value
+t2j_function = lambda f: lambda *args: jax.tree_util.tree_map(lambda x : x.value, f(*jax.tree_util.tree_map(Torchish, args)))
 
 
 def t2j_module(module):
